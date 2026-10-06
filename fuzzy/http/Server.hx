@@ -103,7 +103,7 @@ class Server {
 
     final method = protocol_split[0];
     final path = protocol_split[1];
-    final version: Version = protocol_split[2] ?? HTTP1_0;
+    final version: Version = protocol_split[2] ?? HTTP0_9;
 
     final request_headers = read_headers(client.input);
     trace('request headers: ${request_headers}');
@@ -111,20 +111,52 @@ class Server {
     trace("sending body:");
 
     try switch version {
-      // while these aren't implemented, we should downgrade the request
+      // this is kept as a gimmick
+      case HTTP0_9:
+        #if fuzzy.http.enable_http0_9
+        var request: Request = {
+          method: method,
+          path: path,
+          version: version,
 
-      // case HTTP3: 
-      //   client.output.writeString('$version 400');
-      //   client.output.writeString(Server.NEWLINE);
-      //   client.output.flush();
+          socket: client
+        };
+
+        var response = handle(request);
+
+        client.output.writeString('${response.content ?? ''}');
+
+        client.output.flush();
+        #else
+        client.output.writeString("unsupported");
+        #end
         
-      // case HTTP2: 
-      //   client.output.writeString('$version 400');
-      //   client.output.writeString(Server.NEWLINE);
-      //   client.output.flush();
-      
-      case HTTP1_1: 
+      case HTTP1_0:
+        var request: Request = {
+          method: method,
+          path: path,
+          version: version,
 
+          socket: client
+        };
+
+        var response = handle(request);
+
+        client.output.writeString('HTTP/1.0 ${response.status}');
+        client.output.writeString('\r\n');
+
+        client.output.writeString('content-length: ${response.content?.length ?? 0}');
+        client.output.writeString('\r\n');
+        
+        final headers = response.headers.toString();
+        client.output.writeString(headers);
+
+        client.output.writeString('\r\n');
+        client.output.writeString('${response.content ?? ''}');
+
+        client.output.flush();
+      
+      case HTTP1_1, _: 
         var request: Request = {
           method: method,
           path: path,
@@ -152,31 +184,17 @@ class Server {
 
         process(client);
 
-      case HTTP1_0, _:    
-        var request: Request = {
-          method: method,
-          path: path,
-          version: version,
+      // while these aren't implemented, we should downgrade the request (by switch-case fallbacking)
 
-          socket: client
-        };
-
-        var response = handle(request);
-
-        client.output.writeString('HTTP/1.0 ${response.status}');
-        client.output.writeString('\r\n');
-
-        client.output.writeString('content-length: ${response.content?.length ?? 0}');
-        client.output.writeString('\r\n');
+      // case HTTP3: 
+      //   client.output.writeString('$version 400');
+      //   client.output.writeString(Server.NEWLINE);
+      //   client.output.flush();
         
-        final headers = response.headers.toString();
-        client.output.writeString(headers);
-
-        client.output.writeString('\r\n');
-        client.output.writeString('${response.content ?? ''}');
-
-        client.output.flush();
-
+      // case HTTP2: 
+      //   client.output.writeString('$version 400');
+      //   client.output.writeString(Server.NEWLINE);
+      //   client.output.flush();
     } catch(e: Eof) {
       trace('failed to send output to client $e');
     }
