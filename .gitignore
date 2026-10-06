@@ -1,0 +1,6 @@
+bin/
+.haxelib/
+
+# profiling stuff lol
+hlprofile.dump
+profiler.hl

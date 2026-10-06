@@ -1,0 +1,13 @@
+fuzzy.http.Request
+fuzzy.http.Headers
+fuzzy.http.Response
+fuzzy.http.Server
+
+-cp src
+--main Main
+
+-L hxcoro
+
+-D http.debug
+
+-hl bin/main.hl

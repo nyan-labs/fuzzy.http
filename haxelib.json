@@ -1,0 +1,13 @@
+{
+  "name": "fuzzy.http",
+  "url" : "https://github.com/nyan-labs/fuzzy.http",
+  "license": "GPL",
+  "tags": ["http"],
+  "description": "a webserver (for sys targets)",
+  "version": "0.0.0",
+  "classPath": "src/",
+  "releasenote": "ae",
+  "contributors": ["qzipp"],
+  "dependencies": {
+  }
+}
