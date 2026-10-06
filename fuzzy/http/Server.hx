@@ -1,5 +1,6 @@
 package fuzzy.http;
 
+import fuzzy.http.Response.Status;
 import fuzzy.http.Request.Version;
 import sys.net.AsyncSocket;
 import haxe.ds.WeakMap;
@@ -78,23 +79,37 @@ class Server {
   function process(client: Socket) {
     trace('got connection: ${client.peer()}');
 
-    final protocol = try client.input.readLine() catch(e: Eof) {
+    client.waitForRead();
+
+    var protocol: String = null;
+    try while(protocol == null) {
+      var line = client.input.readLine();
+
+      if(line != "\n" || line != "")
+        protocol = line;
+    }catch(e: Eof) {
       trace('failed reading client protocol: $e'); // todo: proper logging
       return;
     };
 
     final protocol_split = protocol.split(" ");
 
+    if(protocol_split.length < 2) {
+      trace('invalid protocol');
+      client.output.writeString('HTTP/1.0 ${Status.BadRequest}'); // is this right? idk
+      client.close();
+      return;
+    }
+
     final method = protocol_split[0];
     final path = protocol_split[1];
-    final version: Version = protocol_split[2];
+    final version: Version = protocol_split[2] ?? HTTP1_0;
 
-    client.waitForRead();
     final request_headers = read_headers(client.input);
     trace('request headers: ${request_headers}');
 
     trace("sending body:");
-    
+
     try switch version {
       // while these aren't implemented, we should downgrade the request
 
@@ -108,12 +123,36 @@ class Server {
       //   client.output.writeString(Server.NEWLINE);
       //   client.output.flush();
       
-      // case HTTP1_1: 
-      //   client.output.writeString('$version 400');
-      //   client.output.writeString(Server.NEWLINE);
-      //   client.output.flush();
+      case HTTP1_1: 
 
-      case HTTP1_0, _:
+        var request: Request = {
+          method: method,
+          path: path,
+          version: version,
+
+          socket: client
+        };
+
+        var response = handle(request);
+
+        client.output.writeString('HTTP/1.0 ${response.status}');
+        client.output.writeString('\r\n');
+
+        // on http 1.1 we dont need this, we should use <smth else that i forgot, see rfc> 
+        client.output.writeString('content-length: ${response.content?.length ?? 0}');
+        client.output.writeString('\r\n');
+        
+        final headers = response.headers.toString();
+        client.output.writeString(headers);
+
+        client.output.writeString('\r\n');
+        client.output.writeString('${response.content ?? ''}');
+
+        client.output.flush();
+
+        process(client);
+
+      case HTTP1_0, _:    
         var request: Request = {
           method: method,
           path: path,
