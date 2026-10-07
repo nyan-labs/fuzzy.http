@@ -9,5 +9,6 @@
   "releasenote": "ae",
   "contributors": ["qzipp"],
   "dependencies": {
+    "plasma": "1.1.0"
   }
 }

@@ -4,3 +4,8 @@ fuzzy.http.Request
 fuzzy.http.Headers
 fuzzy.http.Response
 fuzzy.http.Server
+
+-L plasma
+
+-D fuzzy.log.sourceline
+-D fuzzy.log.debug

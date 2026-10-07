@@ -1,8 +1,9 @@
 package fuzzy.http;
 
+import fuzzy.log.Logger;
+import fuzzy.types.Result;
 import haxe.EnumTools;
 import fuzzy.http.Request.Protocol;
-import haxe.ds.Option;
 import fuzzy.http.Request.Method;
 import fuzzy.http.Workers;
 import sys.thread.Thread;
@@ -21,14 +22,19 @@ using StringTools;
 
 @:nullSafety(StrictThreaded)
 class Server {
+  final logger: Logger;
+
   public final host: Host;
   public final port: Int;
   
   var workers: Workers; 
+
   
   // since my main goal is a hashlink webserver, shouldn't we be using the std's libuv Tcp for hashlink? 
   public final socket = new Socket();
   public function new(?host: Host, ?port: Int) {
+    logger = new Logger(Type.getClassName(Server));
+
     this.host = host ?? new Host("0.0.0.0");
     this.port = port ?? 3000;
 
@@ -45,8 +51,7 @@ class Server {
   
   public function start() {
     socket.listen(256);
-
-    trace('started http server at ${host.host}:$port'); // make it a callback?
+    logger.log(Dbg, 'started http server at ${host.host}:$port'); // make it a callback?
 
     while(true) {
       var client = socket.accept();
@@ -61,7 +66,7 @@ class Server {
     return new Response();
   }
 
-  function read_headers(input: haxe.io.Input): Option<Headers> {
+  function read_headers(input: haxe.io.Input): Result<Headers, String> {
     var headers: Map<String, String> = new Map();
     
     try while(true) {
@@ -80,64 +85,64 @@ class Server {
       
       headers.set(name, value);
     } catch(e: Eof) {
-      trace('failed reading client headers: $e');
-
-      return None;
+      return Err('failed reading client headers: $e');
     }
 
-    return Some(headers);
+    return Ok(headers);
   }
 
-  function read_protocol(client: Socket): Option<Protocol> {
+  function read_protocol(input: haxe.io.Input): Result<Protocol, String> {
     try while(true) {
-      var line = client.input.readLine();
+      var line = input.readLine();
 
       if(line == "")
         continue;
         
       var split = line.split(" ");
 
-      if(split.length < 2) {
-        trace('invalid protocol (got `$line`)');
-        client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
-        client.close();
-        return None;
-      }
+      if(split.length < 2)
+        return Err('invalid protocol (got `$line`)');
 
       final method: Method = split[0];
       final path: String = split[1];
       final version: Version = split[2] ?? HTTP0_9;
 
-      return Some({
+      return Ok({
         method: method,
         path: path,
         version: version
       });
     } catch(e: Eof) {
-      trace('failed reading client protocol: $e'); // todo: proper logging
-      return None;
+      return Err('failed reading client protocol: $e'); // todo: propper logging
     };
   }
 
 
   function process(client: Socket) {
-    trace('got connection: ${client.peer()}');
+    logger.log(Dbg, 'got connection: ${client.peer()}');
 
     client.waitForRead(); // todo: timeout, we can't let it hang a connection
 
-    final protocol = switch read_protocol(client) {
-      case Some(v): v;
-      case None: return;
+    final protocol = switch read_protocol(client.input) {
+      case Ok(v): v;
+      case Err(e): 
+        logger.log(Err, e);
+
+        client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
+        return client.close();
     }
 
     final request_headers = switch read_headers(client.input) {
-      case Some(v): v;
-      case None: new Headers();
+      case Ok(v): v;
+      case Err(e): 
+        logger.log(Err, e);
+
+        new Headers();
     }
 
     try switch protocol.version {
       case version if(!version.startsWith("HTTP/")):
-        trace('invalid http version (got $version)');
+        logger.log(Err, 'invalid http version (got $version)');
 
         client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
 
@@ -175,7 +180,7 @@ class Server {
           response.headers.set(ContentLength, (response.content?.length ?? 0).string());
 
         final headers = response.headers.string();
-        trace("sending headers:", headers);
+        logger.log(Dbg, 'sending headers: $headers');
         client.output.writeString(headers);
 
         client.output.writeString('\r\n');
@@ -200,7 +205,7 @@ class Server {
           response.headers.set(ContentLength, (response.content?.length ?? 0).string());
         
         final headers = response.headers.string();
-        trace("sending headers:", headers);
+        logger.log(Dbg, 'sending headers: $headers');
         client.output.writeString(headers);
 
         client.output.writeString('\r\n');
@@ -222,7 +227,7 @@ class Server {
       //   client.output.writeString(Server.NEWLINE);
       //   client.output.flush();
     } catch(e: Eof) {
-      trace('failed to send output to client $e');
+      logger.log(Dbg + Err, 'failed to send output to client $e');
     }
 
     client.close();

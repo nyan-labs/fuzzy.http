@@ -35,7 +35,10 @@ abstract Cookies(Map<String, String>) {
 	}
 }
 
-typedef Protocol = {
+@:struct
+@:structInit
+@:publicFields
+class Protocol {
   final method: Method;
   final path: String;
   final version: Version;
