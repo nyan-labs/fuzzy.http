@@ -5,7 +5,7 @@
   "tags": ["http"],
   "description": "a webserver (for sys targets)",
   "version": "0.0.0",
-  "classPath": "src/",
+  "classPath": "src",
   "releasenote": "ae",
   "contributors": ["qzipp"],
   "dependencies": {

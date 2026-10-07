@@ -81,13 +81,14 @@ class Server {
 
     client.waitForRead();
 
+    // read until we get a http protocol
     var protocol: String = null;
     try while(protocol == null) {
       var line = client.input.readLine();
 
       if(line != "\n" || line != "")
         protocol = line;
-    }catch(e: Eof) {
+    } catch(e: Eof) {
       trace('failed reading client protocol: $e'); // todo: proper logging
       return;
     };
@@ -96,7 +97,7 @@ class Server {
 
     if(protocol_split.length < 2) {
       trace('invalid protocol');
-      client.output.writeString('HTTP/1.0 ${Status.BadRequest}'); // is this right? idk
+      client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
       client.close();
       return;
     }

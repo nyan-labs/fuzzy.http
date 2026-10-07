@@ -1,3 +1,5 @@
+package;
+
 import fuzzy.http.Headers;
 import fuzzy.http.Request;
 import fuzzy.http.Request.Method;
@@ -21,6 +23,7 @@ class Main {
       // ]),
 
       // todo: this in a macro
+      // (out of scope for fuzzy.http?)
       @:query(var page: Int = 0)
       @:param(var hey: String = "meow")
       @:return({
