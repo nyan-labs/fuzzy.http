@@ -11,7 +11,7 @@ abstract Headers(Map<HeaderName, String>) {
     this = map ?? new Map();
   }
 
-  @:to public function toString() {
+  @:to public function string() {
     var string = '';
 
     for(name => value in this) {

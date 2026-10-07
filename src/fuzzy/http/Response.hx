@@ -2,7 +2,6 @@ package fuzzy.http;
 
 import haxe.Json;
 
-
 enum abstract Status(Int) from Int to Int {
 	final Continue = 100;
 	final SwitchingProtocols = 101;
@@ -65,7 +64,6 @@ enum abstract Status(Int) from Int to Int {
 	final NotExtended = 510;
 	final NetworkAuthenticationRequired = 511;
 }
-
 
 @:struct
 @:structInit

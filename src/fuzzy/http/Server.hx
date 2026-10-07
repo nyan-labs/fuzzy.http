@@ -1,49 +1,58 @@
 package fuzzy.http;
 
+import haxe.EnumTools;
+import fuzzy.http.Request.Protocol;
+import haxe.ds.Option;
+import fuzzy.http.Request.Method;
+import fuzzy.http.Workers;
+import sys.thread.Thread;
+import sys.thread.ThreadImpl;
+import fuzzy.http.Headers.HeaderName;
 import fuzzy.http.Response.Status;
 import fuzzy.http.Request.Version;
-import sys.net.AsyncSocket;
-import haxe.ds.WeakMap;
 import haxe.io.Eof;
-// import hxcoro.schedulers.ThreadAwareScheduler;
-// import hxcoro.dispatchers.ThreadPoolDispatcher;
-// import hxcoro.thread.FixedThreadPool;
-// import hxcoro.Coro.*;
-// import hxcoro.CoroRun;
 
 import sys.net.Host;
 import sys.net.Socket;
 
+using Std;
 using Math;
 using StringTools;
 
+@:nullSafety(StrictThreaded)
 class Server {
-  final host: Host;
-  final port: Int;
-
+  public final host: Host;
+  public final port: Int;
+  
+  var workers: Workers; 
+  
+  // since my main goal is a hashlink webserver, shouldn't we be using the std's libuv Tcp for hashlink? 
+  public final socket = new Socket();
   public function new(?host: Host, ?port: Int) {
     this.host = host ?? new Host("0.0.0.0");
     this.port = port ?? 3000;
-  }
 
-  public function start() {
-    var socket = new Socket();
+    socket.bind(this.host, this.port);
     
     socket.setFastSend(true);
     socket.setTimeout(3600);
     socket.setBlocking(false);
     
-    socket.bind(host, port);
+    workers = new Workers(16, Type.getClassName(Server));
+    workers.work();
+  }
+  
+  
+  public function start() {
+    socket.listen(256);
 
     trace('started http server at ${host.host}:$port'); // make it a callback?
-    socket.listen(8);
 
     while(true) {
       var client = socket.accept();
+      
       if(client != null) {
-        // todo: use different coroutine lib
-        // CoroRun.run(_ -> process(client));
-        process(client);
+        workers.add(() -> process(client));
       }
     }
   }
@@ -52,7 +61,7 @@ class Server {
     return new Response();
   }
 
-  function read_headers(input: haxe.io.Input) {
+  function read_headers(input: haxe.io.Input): Option<Headers> {
     var headers: Map<String, String> = new Map();
     
     try while(true) {
@@ -66,59 +75,77 @@ class Server {
       final name = header_split[0]?.trim(); // same here
       final value = header_split[1]?.trim(); // prob not needed 
       
+      if(name == null || value == null)
+        continue;
+      
       headers.set(name, value);
     } catch(e: Eof) {
       trace('failed reading client headers: $e');
+
+      return None;
     }
 
-    return headers;
+    return Some(headers);
+  }
+
+  function read_protocol(client: Socket): Option<Protocol> {
+    try while(true) {
+      var line = client.input.readLine();
+
+      if(line == "")
+        continue;
+        
+      var split = line.split(" ");
+
+      if(split.length < 2) {
+        trace('invalid protocol (got `$line`)');
+        client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
+        client.close();
+        return None;
+      }
+
+      final method: Method = split[0];
+      final path: String = split[1];
+      final version: Version = split[2] ?? HTTP0_9;
+
+      return Some({
+        method: method,
+        path: path,
+        version: version
+      });
+    } catch(e: Eof) {
+      trace('failed reading client protocol: $e'); // todo: proper logging
+      return None;
+    };
   }
 
 
-  // @:coroutine 
   function process(client: Socket) {
     trace('got connection: ${client.peer()}');
 
-    client.waitForRead();
+    client.waitForRead(); // todo: timeout, we can't let it hang a connection
 
-    // read until we get a http protocol
-    var protocol: String = null;
-    try while(protocol == null) {
-      var line = client.input.readLine();
-
-      if(line != "\n" || line != "")
-        protocol = line;
-    } catch(e: Eof) {
-      trace('failed reading client protocol: $e'); // todo: proper logging
-      return;
-    };
-
-    final protocol_split = protocol.split(" ");
-
-    if(protocol_split.length < 2) {
-      trace('invalid protocol');
-      client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
-      client.close();
-      return;
+    final protocol = switch read_protocol(client) {
+      case Some(v): v;
+      case None: return;
     }
 
-    final method = protocol_split[0];
-    final path = protocol_split[1];
-    final version: Version = protocol_split[2] ?? HTTP0_9;
+    final request_headers = switch read_headers(client.input) {
+      case Some(v): v;
+      case None: new Headers();
+    }
 
-    final request_headers = read_headers(client.input);
-    trace('request headers: ${request_headers}');
+    try switch protocol.version {
+      case version if(!version.startsWith("HTTP/")):
+        trace('invalid http version (got $version)');
 
-    trace("sending body:");
+        client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
 
-    try switch version {
       // this is kept as a gimmick
       case HTTP0_9:
         #if fuzzy.http.enable_http0_9
         var request: Request = {
-          method: method,
-          path: path,
-          version: version,
+          protocol: protocol,
 
           socket: client
         };
@@ -129,14 +156,12 @@ class Server {
 
         client.output.flush();
         #else
-        client.output.writeString("unsupported");
+        client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
         #end
         
       case HTTP1_0:
         var request: Request = {
-          method: method,
-          path: path,
-          version: version,
+          protocol: protocol,
 
           socket: client
         };
@@ -146,10 +171,11 @@ class Server {
         client.output.writeString('HTTP/1.0 ${response.status}');
         client.output.writeString('\r\n');
 
-        client.output.writeString('content-length: ${response.content?.length ?? 0}');
-        client.output.writeString('\r\n');
-        
-        final headers = response.headers.toString();
+        if(!response.headers.exists(ContentLength)) 
+          response.headers.set(ContentLength, (response.content?.length ?? 0).string());
+
+        final headers = response.headers.string();
+        trace("sending headers:", headers);
         client.output.writeString(headers);
 
         client.output.writeString('\r\n');
@@ -159,23 +185,22 @@ class Server {
       
       case HTTP1_1, _: 
         var request: Request = {
-          method: method,
-          path: path,
-          version: version,
+          protocol: protocol,
 
           socket: client
         };
 
         var response = handle(request);
 
-        client.output.writeString('HTTP/1.0 ${response.status}');
+        client.output.writeString('HTTP/1.1 ${response.status}');
         client.output.writeString('\r\n');
 
-        // on http 1.1 we dont need this, we should use <smth else that i forgot, see rfc> 
-        client.output.writeString('content-length: ${response.content?.length ?? 0}');
-        client.output.writeString('\r\n');
+        // on http 1.1 we dont need this, we should use <smth else that i forgot, see rfc>
+        if(!response.headers.exists(ContentLength)) 
+          response.headers.set(ContentLength, (response.content?.length ?? 0).string());
         
-        final headers = response.headers.toString();
+        final headers = response.headers.string();
+        trace("sending headers:", headers);
         client.output.writeString(headers);
 
         client.output.writeString('\r\n');

@@ -1,5 +1,6 @@
 package;
 
+import haxe.coro.Coroutine;
 import fuzzy.http.Headers;
 import fuzzy.http.Request;
 import fuzzy.http.Request.Method;
@@ -38,7 +39,7 @@ class Main {
 
     server.handle = (request) -> {
       for(route in routes) switch route {
-        case Route(method, path, fun) if(request.method == method && request.path == path):
+        case Route(method, path, fun) if(request.protocol.method == method && request.protocol.path == path):
           return fun(request);
         
         case _:
