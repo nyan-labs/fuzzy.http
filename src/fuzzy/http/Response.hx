@@ -9,11 +9,11 @@ enum abstract Status(Int) from Int to Int {
 	final OK = 200;
 	final Created = 201;
 	final Accepted = 202;
-	final Non_AuthoritativeInformation = 203;
+	final NonAuthoritativeInformation = 203;
 	final NoContent = 204;
 	final ResetContent = 205;
 	final PartialContent = 206;
-	final Multi_Status = 207;
+	final MultiStatus = 207;
 	final AlreadyReported = 208;
 	final IMUsed = 226;
 	final MultipleChoices = 300;
