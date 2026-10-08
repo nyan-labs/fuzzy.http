@@ -10,6 +10,7 @@ enum abstract Method(String) from String to String {
 	final DELETE = "DELETE";
 	final PATCH = "PATCH";
 
+	// never going to be supported
 	final CONNECT = "CONNECT";
 	final OPTIONS = "OPTIONS";
 	final QUERY = "QUERY";
@@ -50,7 +51,8 @@ class Protocol {
 class Request {
 	var protocol: Protocol;
 
-	var headers: Headers = new Headers();
+	var headers: Headers;
+	var body: Null<String> = null;
 
 	var cookies: Cookies = new Cookies();
 

@@ -54,14 +54,17 @@ class Logger {
     #if fuzzy.log.trace
     haxe.Log.trace(message, posinfos);
     #else
+    var content = '';
     // log the source file, like how trace does it
     #if fuzzy.log.sourceline 
-    stdout.writeString(':. ${posinfos?.fileName}:${posinfos?.lineNumber}\n'.fg_hex(0xC2FF3E).dim()); 
+    content += ':. ${posinfos?.fileName}:${posinfos?.lineNumber}\n'.fg_hex(0xC2FF3E).dim(); 
     #end
 
     var name = name.dim();
 
-    stdout.writeString('$name::${style_severity(severity)} $message\n');
+    content += '$name::${style_severity(severity)} $message\n';
+    
+    stdout.writeString(content);
     stdout.flush();
     #end
   }

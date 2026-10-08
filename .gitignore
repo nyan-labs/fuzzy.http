@@ -1,5 +1,6 @@
 bin/
 .haxelib/
+dump/
 
 # profiling stuff lol
 hlprofile.dump

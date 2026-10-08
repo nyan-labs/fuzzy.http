@@ -2,6 +2,8 @@ package fuzzy.http;
 
 import haxe.Json;
 
+using Std;
+
 enum abstract Status(Int) from Int to Int {
 	final Continue = 100;
 	final SwitchingProtocols = 101;
@@ -69,7 +71,7 @@ enum abstract Status(Int) from Int to Int {
 @:structInit
 @:publicFields
 class ResponseData {
-	var content: String = null;
+	var body: String = null;
 	var status: Status = OK;
 	
 	var headers: Headers = new Headers();
@@ -88,17 +90,24 @@ abstract Response(ResponseData) {
 	static public function text(status: Status, text: String): Response {
 		return new Response({
 			status: status,
-			content: text
+			body: text,
+			headers: Headers.map([
+				ContentLength => text.length.string()
+			])
 		});
 	}
 
 	static public function json(status: Status, data: Dynamic) {
+		// todo: faster/better json parser
+		var json = Json.stringify(data);
+
 		return new Response({
 			status: status,
 			headers: Headers.map([
+				ContentLength => json.length.string(),
 				ContentType => "application/json"
 			]),
-			content: Json.stringify(data) // todo: faster one
+			body: json
 		});
 	}
 } 

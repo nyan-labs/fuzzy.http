@@ -1,5 +1,6 @@
 package fuzzy.http;
 
+import fuzzy.log.Logger;
 import haxe.ds.Vector;
 
 using Std;
@@ -40,6 +41,8 @@ class Worker {
 typedef Task = Void->Void;
 
 class Workers {
+  var logger: Logger;
+
   var workers: Vector<Worker>;
 
   var queue: Array<Task>;
@@ -48,12 +51,14 @@ class Workers {
   public function new(size: Int = 8, id: String = 'workers') {
     this.id = id;
 
+    logger = new Logger(Type.getClassName(Workers));
+
     this.workers = new Vector(size);
     for(i in 0...size) {
       final worker_id = '$id::worker($i)'; 
       final worker = new Worker(worker_id);
 
-      trace('worker `${worker_id}` spawned');
+      logger.log(Dbg, 'worker `${worker_id}` spawned');
       
       workers.set(i, worker);
     }
@@ -81,7 +86,7 @@ class Workers {
 
     for(worker in workers) {
       if(worker.complete) {
-        trace("sent", next, "to", worker);
+        logger.log(Dbg, 'sent $next to $worker');
         worker.thread.sendMessage(next);
         
         break;

@@ -1,5 +1,6 @@
 package;
 
+import fuzzy.router.EnumRouter;
 import haxe.coro.Coroutine;
 import fuzzy.http.Headers;
 import fuzzy.http.Request;
@@ -7,47 +8,42 @@ import fuzzy.http.Request.Method;
 import fuzzy.http.Response;
 import sys.net.Host;
 
-enum Route {
-  Route(method: Method, path: String, fun: Request->Response);
-
-  Gate(condition: Request->Bool, routes: Array<Route>);
-}
+import fuzzy.router.EnumRouterMacro;
+import fuzzy.router.EnumRouterMacro.meta;
 
 class Main {
+	static var router = EnumRouterMacro.from([
+		// todo: stuff
+		// Gate(req -> req.cookies.get("user") != null, [
+		// Route(GET, "/", req -> "logged in"),
+		// ]),
+		// todo: this in a macro
+		// (out of scope for fuzzy.http?)
+		@:query(var page:Int = 0)
+		@:param(var hey:String = "meow")
+		@:return({
+			name: String,
+			version: Int
+		})
+		Route(GET, "/", req -> Response.json(200, {
+			name: "hashlink",
+			version: "idk"
+		})),
+		
+		Route(GET, "/tist", req -> 'hi'),
+		
+		Route(POST, "/", req -> Response.text(200, "hi"))
+	]);
+    
   static function main() {
     var server = new fuzzy.http.Server(new Host("0.0.0.0"), 3000);
 
-    var routes = [
-      // todo: stuff
-      // Gate(req -> req.cookies.get("user") != null, [
-        // Route(GET, "/", req -> "logged in"),
-      // ]),
+    // router.add(meta(
+    //   @:return(String)
+    //   Route(GET, "/balls", request -> "yay")
+    // ));
 
-      // todo: this in a macro
-      // (out of scope for fuzzy.http?)
-      @:query(var page: Int = 0)
-      @:param(var hey: String = "meow")
-      @:return({
-        name: String,
-        version: Int
-      })
-      Route(GET, "/", req -> Response.json(200, {
-        name: "hashlink",
-        version: "idk"
-      }))
-    ];
-
-    server.handle = (request) -> {
-      for(route in routes) switch route {
-        case Route(method, path, fun) if(request.protocol.method == method && request.protocol.path == path):
-          return fun(request);
-        
-        case _:
-          continue;
-      }
-
-      return Response.text(NotFound, "404");
-    }
+    server.handle = router.handle;
     
     server.start();
   }
