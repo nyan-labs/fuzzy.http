@@ -1,5 +1,6 @@
 package fuzzy.http;
 
+import haxe.EventLoop;
 import fuzzy.log.Logger;
 import fuzzy.types.Result;
 import haxe.EnumTools;
@@ -30,7 +31,7 @@ class Server {
   // since my main goal is a hashlink webserver, shouldn't we be using the std's libuv Tcp for hashlink? 
   public final socket = new Socket();
   
-  var workers: Workers;
+  // var workers: Workers;
   
   public function new(?host: Host, ?port: Int) {
     logger = new Logger(Type.getClassName(Server));
@@ -43,9 +44,9 @@ class Server {
     socket.setFastSend(true);
     socket.setTimeout(3600);
     socket.setBlocking(false);
-    
-    workers = new Workers(16, Type.getClassName(Server));
-    workers.work();
+
+    // workers = new Workers(16, Type.getClassName(Server));
+    // workers.work();
   }
   
   
@@ -57,7 +58,7 @@ class Server {
       var client = socket.accept();
       
       if(client != null) {
-        workers.add(() -> process(client));
+        EventLoop.addTask(() -> process(client), false);
       }
     }
   }
@@ -113,14 +114,14 @@ class Server {
         version: version
       });
     } catch(e: Eof) {
-      return Err('failed reading client protocol: $e'); // todo: propper logging
+      return Err('failed reading client protocol: $e'); // todo: proper logging
     };
   }
 
 
-  function process(client: Socket) {
+  function process(client: Socket): Result<Bool, String> {
     if(client.peer() == null)
-      return;
+      return Err("client not connected"); // we should have proper exceptions, maybe
 
     logger.log(Dbg, 'got connection: ${client.peer()}');
 
@@ -132,7 +133,8 @@ class Server {
         logger.log(Err, e);
 
         client.output.writeString('HTTP/1.0 ${Status.HTTPVersionNotSupported}');
-        return client.close();
+        client.close();
+        return Err('reading protocol failed: $e');
     }
 
     final request_headers = switch read_headers(client.input) {
@@ -207,95 +209,19 @@ class Server {
           client.output.flush();
 
           client.close();
-          return;
+          return Err('missing host header, rejecting requet');
         }
 
         // it's time to split this off into a function, 1.0 also has more than one protocol, soooo
-        logger.log(Dbg, 'handling ${request.protocol.method}');  
-        switch request.protocol.method {
-          case GET:
-            var response = handle(request);
-
-            client.output.writeString('${Version.HTTP1_1} ${response.status}');
-            client.output.writeString('\r\n');
-
-            final headers = response.headers.string();
-            logger.log(Dbg, 'sending headers: $headers');
-            client.output.writeString(headers);
-
-            client.output.writeString('\r\n');
-            logger.log(Dbg, 'sending body: ${response.body}');
-            client.output.writeString('${response.body ?? ''}');
-
-            client.output.flush();
-
-            process(client);
-
-          case POST:
-            var length: Null<Int> = null;
-            if(!request.headers.exists(ContentLength)) {
-              client.output.writeString('${Version.HTTP1_1} ${Status.LengthRequired}');
-              client.output.flush();
-        
-              client.close();
-              return;
-            } else length = request.headers.get(ContentLength)?.parseInt();
-            // todo!
-            if(request.headers.exists(TransferEncoding)) {
-              logger.log(Dbg+Warn, 'faced with an unimplemented method');
-              client.output.writeString('${Version.HTTP1_1} ${Status.BadRequest}');
-              client.output.flush();
-              return;
-            }
-
-            // client.output.writeString('${Version.HTTP1_1} ${Status.Continue}');
-            // client.output.writeString('\r\n');
-
-            logger.log(Dbg, 'waiting for POST body');
-            client.waitForRead();
-
-            // split this off too
-            if(length != null) {
-              logger.log(Dbg, 'going to read the body with the known length of $length');
-              var i = 0;
-              var body = "";
-
-              try while(i < length) {
-                body += client.input.readString(1);
-                
-                i++;
-                trace("hi", body);
-              } catch(e: Eof)
-                logger.log(Dbg + Err, 'eof\'d, fuck you too i guess $e');
-
-              if(body.length != 0)
-                request.body = body;
-            }
-            
-            trace('yoo we got da bodie', request.body);
-
-            var response = handle(request);
-
-            client.output.writeString('${Version.HTTP1_1} ${response.status}');
-            client.output.writeString('\r\n');
-
-            final headers = response.headers.string();
-            logger.log(Dbg, 'sending headers: $headers');
-            client.output.writeString(headers);
-
-            client.output.writeString('\r\n');
-            logger.log(Dbg, 'sending body: ${response.body}');
-            client.output.writeString('${response.body ?? ''}');
-
-            client.output.flush();
-
-            // process(client);
-
-          case _:
-            logger.log(Dbg+Warn, 'faced with an unimplemented method');
+        logger.log(Dbg, 'handling ${request.protocol.method}');
+        switch process_method(request) {
+          case Ok(_): null;
+          case Err(e):
             client.output.writeString('${Version.HTTP1_1} ${Status.BadRequest}');
             client.output.flush();
 
+            client.close();
+            return Err('missing host header, rejecting requet');
         }
 
       // while these aren't implemented, we should downgrade the request (by switch-case fallbacking)
@@ -314,5 +240,103 @@ class Server {
     }
 
     client.close();
+    return Ok(true);
   }
+
+	function process_method(request: Request): Result<Bool, String> {
+    final client = request.socket;
+
+		switch request.protocol.method {
+			case GET:
+				var response = handle(request);
+
+				client.output.writeString('${Version.HTTP1_1} ${response.status}');
+				client.output.writeString('\r\n');
+
+				final headers = response.headers.string();
+				logger.log(Dbg, 'sending headers: $headers');
+				client.output.writeString(headers);
+
+				client.output.writeString('\r\n');
+				logger.log(Dbg, 'sending body: ${response.body}');
+				client.output.writeString('${response.body ?? ''}');
+
+				client.output.flush();
+
+				return process(client);
+
+			case POST:
+				var length:Null<Int> = null;
+				if (!request.headers.exists(ContentLength)) {
+					client.output.writeString('${Version.HTTP1_1} ${Status.LengthRequired}');
+					client.output.flush();
+
+					client.close();
+
+					return Err("POST request is missing content-length");
+				} else
+					length = request.headers.get(ContentLength)?.parseInt();
+				// todo!
+				if (request.headers.exists(TransferEncoding)) {
+					logger.log(Dbg + Warn, 'faced with an unimplemented method');
+					client.output.writeString('${Version.HTTP1_1} ${Status.BadRequest}');
+					client.output.flush();
+
+					client.close();
+					return Err("transfer-encoding is unfinished");
+				}
+
+				// client.output.writeString('${Version.HTTP1_1} ${Status.Continue}');
+				// client.output.writeString('\r\n');
+
+				logger.log(Dbg, 'waiting for POST body');
+				client.waitForRead();
+
+				// split this off too
+				if (length != null) {
+					logger.log(Dbg, 'going to read the body with the known length of $length');
+					var i = 0;
+					var body = "";
+
+					try
+						while (i < length) {
+							body += client.input.readString(1);
+
+							i++;
+							trace("hi", body);
+						} catch (e:Eof)
+						logger.log(Dbg + Err, 'eof\'d, fuck you too i guess $e');
+
+					if (body.length != 0)
+						request.body = body;
+				}
+
+				trace('yoo we got da bodie', request.body);
+
+				var response = handle(request);
+
+				client.output.writeString('${Version.HTTP1_1} ${response.status}');
+				client.output.writeString('\r\n');
+
+				final headers = response.headers.string();
+				logger.log(Dbg, 'sending headers: $headers');
+				client.output.writeString(headers);
+
+				client.output.writeString('\r\n');
+				logger.log(Dbg, 'sending body: ${response.body}');
+				client.output.writeString('${response.body ?? ''}');
+
+				client.output.flush();
+
+        return Ok(true);
+			// process(client);
+
+			case _:
+				logger.log(Dbg + Warn, 'faced with an unimplemented method');
+				client.output.writeString('${Version.HTTP1_1} ${Status.BadRequest}');
+				client.output.flush();
+
+        return Err('unknown method ${request.protocol.method}');
+		}
+	}
 }
