@@ -92,7 +92,7 @@ abstract Response(ResponseData) {
 			status: status,
 			body: text,
 			headers: Headers.map([
-				ContentLength => text.length.string()
+				ContentLength => [text.length.string()]
 			])
 		});
 	}
@@ -104,8 +104,8 @@ abstract Response(ResponseData) {
 		return new Response({
 			status: status,
 			headers: Headers.map([
-				ContentLength => json.length.string(),
-				ContentType => "application/json"
+				ContentLength => [json.length.string()],
+				ContentType => ["application/json"]
 			]),
 			body: json
 		});

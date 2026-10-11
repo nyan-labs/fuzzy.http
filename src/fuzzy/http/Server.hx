@@ -1,18 +1,14 @@
 package fuzzy.http;
 
 import haxe.EventLoop;
+import haxe.io.Eof;
+
 import fuzzy.log.Logger;
 import fuzzy.types.Result;
-import haxe.EnumTools;
-import fuzzy.http.Request.Protocol;
 import fuzzy.http.Request.Method;
-import fuzzy.http.Workers;
-import sys.thread.Thread;
-import sys.thread.ThreadImpl;
-import fuzzy.http.Headers.HeaderName;
-import fuzzy.http.Response.Status;
+import fuzzy.http.Request.Protocol;
 import fuzzy.http.Request.Version;
-import haxe.io.Eof;
+import fuzzy.http.Response.Status;
 
 import sys.net.Host;
 import sys.net.Socket;
@@ -42,11 +38,8 @@ class Server {
     socket.bind(this.host, this.port);
     
     socket.setFastSend(true);
-    socket.setTimeout(3600);
+    socket.setTimeout(3600); // doesnt do anything
     socket.setBlocking(false);
-
-    // workers = new Workers(16, Type.getClassName(Server));
-    // workers.work();
   }
   
   
@@ -68,7 +61,7 @@ class Server {
   }
 
   function read_headers(input: haxe.io.Input): Result<Headers, String> {
-    var headers: Map<String, String> = new Map();
+    var headers: Headers = new Headers();
     
     try while(true) {
       var line = input.readLine();
@@ -84,7 +77,10 @@ class Server {
       if(name == null || value == null)
         continue;
       
-      headers.set(name, value);
+      if(headers.exists(name))
+        headers.get(name)?.push(value);
+      else
+        headers.set(name, [value]);
     } catch(e: Eof) {
       return Err('failed reading client headers: $e');
     }
@@ -118,14 +114,13 @@ class Server {
     };
   }
 
-
   function process(client: Socket): Result<Bool, String> {
     if(client.peer() == null)
       return Err("client not connected"); // we should have proper exceptions, maybe
 
     logger.log(Dbg, 'got connection: ${client.peer()}');
 
-    client.waitForRead(); // todo: timeout, we can't let it hang a connection
+    client.waitForRead();
 
     final protocol = switch read_protocol(client.input) {
       case Ok(v): v;
@@ -180,20 +175,17 @@ class Server {
           socket: client
         };
 
-        var response = handle(request);
+        logger.log(Dbg, 'handling ${request.protocol.method}');
+        switch process_method(request) {
+          case Ok(_): null;
+          case Err(e):
+            client.output.writeString('${Version.HTTP1_1} ${Status.BadRequest}');
+            client.output.flush();
 
-        client.output.writeString('${Version.HTTP1_0} ${response.status}');
-        client.output.writeString('\r\n');
+            client.close();
+            return Err('failed handling ${request.protocol.method}: $e');
+        }
 
-        final headers = response.headers.string();
-        logger.log(Dbg, 'sending headers: $headers');
-        client.output.writeString(headers);
-
-        client.output.writeString('\r\n');
-        client.output.writeString('${response.body ?? ''}');
-
-        client.output.flush();
-      
       case HTTP1_1, _:
         var request: Request = {
           protocol: protocol,
@@ -209,10 +201,9 @@ class Server {
           client.output.flush();
 
           client.close();
-          return Err('missing host header, rejecting requet');
+          return Err('missing host header, rejecting request');
         }
 
-        // it's time to split this off into a function, 1.0 also has more than one protocol, soooo
         logger.log(Dbg, 'handling ${request.protocol.method}');
         switch process_method(request) {
           case Ok(_): null;
@@ -221,7 +212,7 @@ class Server {
             client.output.flush();
 
             client.close();
-            return Err('missing host header, rejecting requet');
+            return Err('failed handling ${request.protocol.method}: $e');
         }
 
       // while these aren't implemented, we should downgrade the request (by switch-case fallbacking)
@@ -275,7 +266,7 @@ class Server {
 
 					return Err("POST request is missing content-length");
 				} else
-					length = request.headers.get(ContentLength)?.parseInt();
+					length = request.headers.first(ContentLength)?.parseInt();
 				// todo!
 				if (request.headers.exists(TransferEncoding)) {
 					logger.log(Dbg + Warn, 'faced with an unimplemented method');

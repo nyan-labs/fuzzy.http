@@ -1,5 +1,7 @@
 package fuzzy.http;
 
+import haxe.extern.EitherType;
+
 enum abstract HeaderName(String) from String to String {  
   final Accept = 'accept';
   final AcceptCH = 'accept-ch';
@@ -176,7 +178,7 @@ enum abstract HeaderName(String) from String to String {
 }
 
 @:forward
-abstract Headers(Map<HeaderName, String>) {
+abstract Headers(Map<HeaderName, Array<String>>) {
   public function new(?map) {
     this = map ?? new Map();
   }
@@ -191,7 +193,15 @@ abstract Headers(Map<HeaderName, String>) {
     return string;
   }
 
-  @:from static public function map(map: Map<HeaderName, String>) {
+  @:from static public function map(map: Map<HeaderName, Array<String>>) {
     return new Headers(map);
+  }
+
+  inline public function first(key: HeaderName): Null<String> {
+    var value = this.get(key);
+    return if(value != null)
+      value[0]
+    else 
+      null;
   }
 }
