@@ -34,15 +34,6 @@ this is a http server for `sys` targets implemented via `sys.net.Socket`
 * [ ] ssl sockets (?)
 * [ ] use hashlink-specific `hl.uv.Tcp` instead of `sys.net.Socket`
 
-out of scope/to be moved:
-* [ ] router
-  * [ ] adding routes
-  * [ ] middlware
-  * [ ] static
-* [ ] enum router
-  * [x] adding routes (via an enum)
-  * [ ] metadata macros (`@:param(var page: Int = 123)`)
-
 # contributions
 no ai contributions allowed
 

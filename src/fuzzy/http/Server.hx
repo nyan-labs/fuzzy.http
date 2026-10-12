@@ -4,7 +4,7 @@ import haxe.EventLoop;
 import haxe.io.Eof;
 
 import fuzzy.log.Logger;
-import fuzzy.types.Result;
+import fuzzy.ds.Result;
 import fuzzy.http.Request.Method;
 import fuzzy.http.Request.Protocol;
 import fuzzy.http.Request.Version;

@@ -186,8 +186,9 @@ abstract Headers(Map<HeaderName, Array<String>>) {
   @:to public function string() {
     var string = '';
 
-    for(name => value in this) {
-      string += '$name: $value\r\n'; // sanitization needed! i tink.
+    for(name => values in this) {
+      for(value in values)
+        string += '$name: $value\r\n'; // sanitization needed! i tink.
     }
 
     return string;
