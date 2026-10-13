@@ -1,0 +1,22 @@
+[
+	{
+		"name": "fuzzy.http.enable_http0_9",
+		"define": "fuzzy.http.enable_http0_9",
+		"doc": "enables http 0.9 support (gimmick)"
+	},
+	{
+		"name": "fuzzy.log.debug",
+		"define": "fuzzy.log.debug",
+		"doc": "enables logging for debug (Dbg) severity messages"
+	},
+	{
+		"name": "fuzzy.log.sourceline",
+		"define": "fuzzy.log.sourceline",
+		"doc": "shows where in the source code the log message came from"
+	},
+	{
+		"name": "fuzzy.log.trace",
+		"define": "fuzzy.log.trace",
+		"doc": "use haxe's native `trace` for logging instead of the custom logger"
+	}
+]

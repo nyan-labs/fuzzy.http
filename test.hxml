@@ -5,3 +5,6 @@
 --library fuzzy.http
 
 --hl bin/main.hl
+
+-D fuzzy.log.debug
+-D fuzzy.log.sourceline

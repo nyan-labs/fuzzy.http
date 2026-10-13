@@ -7,5 +7,7 @@ fuzzy.http.Server
 
 -L plasma
 
--D fuzzy.log.sourceline
--D fuzzy.log.debug
+--macro haxe.macro.Compiler.registerDefinesDescriptionFile("defines.json")
+
+# -D fuzzy.log.sourceline
+# -D fuzzy.log.debug

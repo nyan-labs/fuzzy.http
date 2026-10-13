@@ -188,6 +188,18 @@ abstract Headers(Map<HeaderName, Array<String>>) {
 
     for(name => values in this) {
       for(value in values)
+        string += '$name: $value;';
+    }
+
+    return string;
+  }
+  inline function toString() return string();
+
+  @:to public function headers(): String {
+    var string = '';
+
+    for(name => values in this) {
+      for(value in values)
         string += '$name: $value\r\n'; // sanitization needed! i tink.
     }
 
@@ -196,6 +208,15 @@ abstract Headers(Map<HeaderName, Array<String>>) {
 
   @:from static public function map(map: Map<HeaderName, Array<String>>) {
     return new Headers(map);
+  }
+
+  inline public function set(key: HeaderName, value: Array<String>) {
+    if(this.exists(key)) {
+      var old_value = this.get(key);
+      value = old_value != null ? old_value.concat(value) : value;
+    }
+    
+    this.set(key, value);
   }
 
   inline public function first(key: HeaderName): Null<String> {

@@ -1,5 +1,6 @@
 package fuzzy.http;
 
+import fuzzy.http.Cookies.Cookie;
 import haxe.Json;
 
 using Std;
@@ -67,20 +68,25 @@ enum abstract Status(Int) from Int to Int {
 	final NetworkAuthenticationRequired = 511;
 }
 
-@:struct
 @:structInit
 @:publicFields
 class ResponseData {
 	var body: String = null;
 	var status: Status = OK;
 	
+	var cookies: Cookies = new Cookies();
+	
 	var headers: Headers = new Headers();
 }
 
 @:forward
 abstract Response(ResponseData) {
-	@:from public function new(?data: ResponseData) {
+	public function new(?data: ResponseData) {
 		this = data ?? {};
+	}
+
+	@:from static function data(?data: ResponseData) {
+		return new Response(data);
 	}
 
 	@:from static function from_string(s: String): Response {
@@ -109,5 +115,17 @@ abstract Response(ResponseData) {
 			]),
 			body: json
 		});
+	}
+
+	inline public function header(key: String, value: Array<String>): Response {
+		this.headers.set(key, value);
+
+		return this;
+	}
+
+	inline public function cookie(cookie: Cookie): Response {
+		this.cookies.set(cookie);
+	
+		return this;
 	}
 } 

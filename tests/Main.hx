@@ -1,9 +1,5 @@
 package;
 
-import fuzzy.http.Request;
-import fuzzy.http.Headers;
-import fuzzy.http.Request;
-import fuzzy.http.Request.Method;
 import fuzzy.http.Response;
 import sys.net.Host;
 
@@ -14,7 +10,16 @@ class Main {
     server.handle = request -> switch request.protocol.path {
 			case "/" if(request.protocol.method == GET):
 				return Response.json(200, {
-					message: 'fuzzy.http hashlink webserver'
+					message: 'fuzzy.http hashlink webserver',
+					cookies: [for(name => _ in request.cookies) name]
+				})
+				.header("custom-header", ["hello 🐾🐾🐾"])
+				.cookie({ 
+					name: "food", 
+					value: "cookie cookie", 
+					expiry: 99999999999999,
+					js: false,
+					strict: false,
 				});
 
 			case _:
@@ -24,14 +29,5 @@ class Main {
 		};
 
     server.start();
-
-		// @:plugin()
-		// @:metaplugin()
-		// var ruter = new Router();
-
-		// @:query(var page: Int = 0)
-		// ruter.get("/stuff", request -> {
-			
-		// });
   }
 }

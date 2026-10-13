@@ -25,18 +25,6 @@ enum abstract Version(String) from String to String {
   final HTTP3 = "HTTP/3";
 }
 
-@:forward
-abstract Cookies(Map<String, String>) {
-	public function new() {
-		this = new Map();
-	}
-
-	public function get(key: String) {
-		return this.get(key);
-	}
-}
-
-@:struct
 @:structInit
 @:publicFields
 class Protocol {
@@ -45,7 +33,6 @@ class Protocol {
   final version: Version;
 }
 
-@:struct
 @:structInit
 @:publicFields
 class Request {
