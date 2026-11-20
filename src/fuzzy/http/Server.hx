@@ -54,6 +54,7 @@ class Server {
       if(client != null) {
         EventLoop.addTask(() -> process(client), false);
       }
+      Sys.sleep(0.01);
     }
   }
 
@@ -192,37 +193,7 @@ class Server {
           protocol: protocol,
 
           headers: request_headers,
-          cookies: {
-            var headers = request_headers;
-            
-            var cookies = new Cookies();
-            for(name => values in headers) {
-              if(name != Cookie)
-                continue;
-
-              for(value in values) {
-                var split = value.split(";");
-                for(s in split) {
-                  var key_value = s.split("=");
-                    
-                  var key: Null<String> = key_value[0]?.trim() ?? null;
-                  var value: Null<String> = key_value[1]?.trim() ?? null; 
-  
-                  if(key == null || value == null)
-                    continue;
-  
-                  // sshhh null safety, its okay
-                  cookies.set({
-                    name: cast key,
-                    value: cast value,
-                    expiry: 0
-                  });
-                }
-              }
-            }
-
-            cookies;
-          },
+          cookies: Cookies.parse_plain(request_headers.get(Cookie) ?? []),
 
           socket: client
         };
@@ -278,33 +249,8 @@ class Server {
 
         // refactor: ugley
         response.headers.set(SetCookie, [
-          for(name => cookie in response.cookies) {
-            var value = new StringBuf();
-
-            value.add('$name=${StringTools.urlEncode(cookie.value)}');
-
-            value.add('; Max-Age=${cookie.expiry}');
-
-            if(cookie.domain != null)
-              value.add('; Domain=${cookie.domain}');
-            if(cookie.path != null)
-              value.add('; Path=${cookie.path}');
-
-            if(cookie.samesite != null)
-              value.add('; SameSite=${cookie.samesite}');
-
-            if(cookie.secure != null && cookie.secure)
-              value.add('; Secure');
-            if(cookie.session != null && cookie.session)
-              value.add('; Session');
-
-            if(cookie.js != null && cookie.js == false)
-              value.add('; HttpOnly');
-            if(cookie.strict != null && cookie.strict)
-              value.add('; HostOnly');
-
-            value.toString();
-          }
+          for(cookie in response.cookies)
+            cookie.string()
         ]);
 
 				final headers = response.headers.headers();

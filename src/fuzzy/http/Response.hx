@@ -1,5 +1,6 @@
 package fuzzy.http;
 
+import fuzzy.util.OneOrMany;
 import fuzzy.http.Cookies.Cookie;
 import haxe.Json;
 
@@ -103,7 +104,7 @@ abstract Response(ResponseData) {
 		});
 	}
 
-	static public function json(status: Status, data: Dynamic) {
+	static public function json(status: Status, data: Dynamic): Response {
 		// todo: faster/better json parser
 		var json = Json.stringify(data);
 
@@ -117,7 +118,7 @@ abstract Response(ResponseData) {
 		});
 	}
 
-	inline public function header(key: String, value: Array<String>): Response {
+	inline public function header(key: String, value: OneOrMany<String>): Response {
 		this.headers.set(key, value);
 
 		return this;
